@@ -1,0 +1,23 @@
+# Data Science and Machine Learning
+pandas==3.1.1
+numpy==2.5.4
+scikit-learn==1.9.1
+xgboost==3.4.1
+joblib==1.6.0
+openpyxl==3.1.5
+
+# Agentic AI
+langgraph==1.2.21
+
+# Backend API
+fastapi==0.162.7
+uvicorn[standard]==0.54.0
+pydantic==2.14.3
+python-dotenv==1.2.4
+
+# Dashboard
+streamlit==1.67.0
+requests==2.34.2
+
+# API Testing
+httpx==0.28.1

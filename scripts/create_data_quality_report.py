@@ -1,0 +1,165 @@
+﻿from pathlib import Path
+import pandas as pd
+
+project_dir = Path(__file__).resolve().parents[1]
+
+inflow_path = project_dir / "data" / "raw" / "BWDF" / "InflowData.xlsx"
+weather_path = project_dir / "data" / "raw" / "BWDF" / "WeatherData.xlsx"
+report_path = project_dir / "docs" / "data_quality_report.md"
+
+inflow = pd.read_excel(inflow_path)
+weather = pd.read_excel(weather_path)
+
+date_col = "Date-time CET-CEST (DD/MM/YYYY HH:mm)"
+dates = pd.to_datetime(inflow[date_col], format="%d/%m/%Y %H:%M")
+
+flow_cols = [c for c in inflow.columns if "(L/s)" in c]
+weather_cols = [c for c in weather.columns if c != date_col]
+
+def make_table(df, columns):
+    lines = [
+        "| Variable | Missing Values | Missing % |",
+        "|---|---:|---:|"
+    ]
+    for col in columns:
+        count = int(df[col].isna().sum())
+        percent = count / len(df) * 100
+        lines.append(f"| {col} | {count} | {percent:.2f}% |")
+    return "\n".join(lines)
+
+duplicate_dates = dates[dates.duplicated(keep=False)].drop_duplicates()
+unique_dates = pd.DatetimeIndex(dates.drop_duplicates())
+
+expected = pd.date_range(
+    start=dates.min(),
+    end=dates.max(),
+    freq="h"
+)
+missing_dates = expected.difference(unique_dates)
+
+timestamps_match = inflow[date_col].equals(weather[date_col])
+
+report = f"""# AquaML Agentic - Data Quality Report
+
+## 1. Dataset Overview
+
+- Dataset: Battle of Water Demand Forecasting (BWDF)
+- Dataset type: Water distribution network measurements
+- Geographic coverage: 10 DMAs in northeastern Italy
+- Inflow records: {len(inflow)}
+- Weather records: {len(weather)}
+- Date range: {dates.min()} to {dates.max()}
+- Frequency: Hourly
+- Inflow unit: Litres per second (L/s)
+
+## 2. Inflow Variables
+
+The dataset contains hourly net inflow measurements for 10
+District Metered Areas (DMA 1 to DMA 10).
+
+{", ".join(flow_cols)}
+
+### Inflow Missing Values
+
+{make_table(inflow, flow_cols)}
+
+## 3. Weather Variables
+
+- Rainfall depth: mm
+- Air temperature: °C
+- Air humidity: %
+- Wind speed: km/h
+
+### Weather Missing Values
+
+{make_table(weather, weather_cols)}
+
+## 4. Duplicate and Timestamp Audit
+
+- Complete duplicate rows: {int(inflow.duplicated().sum())}
+- Repeated timestamp values: {len(duplicate_dates)}
+- Rows belonging to repeated timestamps: {int(dates.duplicated(keep=False).sum())}
+- Missing hourly timestamp labels: {len(missing_dates)}
+- Inflow and weather timestamp columns match: {timestamps_match}
+
+### Repeated Timestamps
+
+{chr(10).join("- " + d.strftime("%d/%m/%Y %H:%M") for d in duplicate_dates) if len(duplicate_dates) else "- None"}
+
+### Missing Hour Labels
+
+{chr(10).join("- " + str(d) for d in missing_dates) if len(missing_dates) else "- None"}
+
+The repeated and missing 02:00 timestamps are consistent with
+CET/CEST daylight-saving time transitions. The source timestamps
+do not contain explicit UTC offsets. The repeated hours must be
+handled carefully using the supplemental calendar information.
+
+## 5. Data Quality Findings
+
+- Some DMA flow measurements contain missing values.
+- DMA 6 has the highest missing-value count among the flow columns.
+- Weather data has missing humidity and wind-speed observations.
+- There are no complete duplicate inflow rows.
+- Timestamp alignment between inflow and weather files has been checked.
+- Raw data should be preserved before preprocessing.
+
+## 6. Project Dataset and Target Scope
+
+AquaML Agentic will initially use the hourly net inflow readings
+of the 10 DMAs as its water-flow forecasting data.
+
+The initial forecasting target will be the hourly net inflow
+for individual DMAs. A combined 10-DMA network indicator may
+also be evaluated after validating data coverage and aggregation.
+
+Important: These 10 DMAs are not verified to represent the
+entire city. Therefore, results must be described as
+10-DMA network-level estimates, not total city water consumption.
+
+## 7. Limitations
+
+- Net inflow includes both water consumption and leakage.
+- An unusual flow pattern can indicate a possible issue, but
+  does not independently confirm a physical water leak.
+- Missing values require careful preprocessing.
+- Daylight-saving transitions require timestamp handling.
+- The dataset represents a specific network in northeastern Italy.
+
+## 8. Preprocessing Recommendations
+
+1. Preserve the original raw Excel files.
+2. Investigate missing values separately for each DMA.
+3. Resolve daylight-saving timestamp ambiguity using source
+   calendar information.
+4. Avoid blindly deleting duplicate timestamps.
+5. Avoid blindly filling all missing values with zero.
+6. Validate data before creating forecasting features.
+
+## 9. Dataset Attribution
+
+Dataset: Battle of Water Demand Forecasting (BWDF) supplemental
+materials.
+
+The dataset is distributed under CC BY 4.0 according to its
+associated open-access release. Cite the original research paper
+and retain the required attribution when redistributing or
+publishing derived work.
+
+---
+
+Report generated by AquaML Agentic.
+"""
+
+report_path.write_text(report, encoding="utf-8")
+
+print("\n===== DATA QUALITY REPORT =====")
+print("Report created successfully!")
+print(f"Location: {report_path}")
+print(f"Inflow records: {len(inflow)}")
+print(f"Weather records: {len(weather)}")
+print(f"Flow variables: {len(flow_cols)}")
+print(f"Weather variables: {len(weather_cols)}")
+print(f"Repeated timestamps: {len(duplicate_dates)}")
+print(f"Missing hourly labels: {len(missing_dates)}")
+print("\nDay 2 final documentation step completed!")
